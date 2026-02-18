@@ -46,7 +46,7 @@ export default function ContactCTA(): JSX.Element {
     setSubmitting(true);
 
     try {
-      const response = await fetch("https://formsubmit.co/ajax/connect@cosmicthinkinglab.online", {
+      const response = await fetch("http://localhost:9090/api/solution/contact", {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
@@ -55,11 +55,9 @@ export default function ContactCTA(): JSX.Element {
         body: JSON.stringify({
           name: form.name,
           email: form.email,
-          company: form.company || "Not provided",
-          budget: form.budget || "Not provided",
-          message: form.message,
-          _subject: `New Inquiry from ${form.name}`,
-          _template: "table"
+          company: form.company,
+          budget: form.budget,
+          message: form.message
         })
       });
 

@@ -79,22 +79,26 @@ export default function ApplicationModal({ isOpen, onClose, roleTitle }: Applica
         const finalRole = isGeneralApplication ? form.customRole : roleTitle;
 
         try {
-            const response = await fetch("https://formsubmit.co/ajax/connect@cosmicthinkinglab.online", {
+            const url = isGeneralApplication
+                ? "http://localhost:9090/api/applications"
+                : "http://localhost:9090/api/jobs";
+
+            const body = {
+                role: isGeneralApplication ? form.customRole : roleTitle,
+                name: form.name,
+                email: form.email,
+                phone: form.phone,
+                resumeLink: form.resumeLink,
+                about: form.info
+            };
+
+            const response = await fetch(url, {
                 method: "POST",
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({
-                    role: finalRole,
-                    name: form.name,
-                    email: form.email,
-                    phone: form.phone,
-                    resume: form.resumeLink,
-                    details: form.info || "No additional details provided",
-                    _subject: `Job Application: ${finalRole} - ${form.name}`,
-                    _template: "table"
-                })
+                body: JSON.stringify(body)
             });
 
             if (!response.ok) {

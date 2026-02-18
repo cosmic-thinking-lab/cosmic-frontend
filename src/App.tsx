@@ -9,6 +9,10 @@ import Payment from './pages/Payment'
 
 import NavBar from './components/NavBar'
 
+import AdminLogin from './pages/AdminLogin'
+import AdminDashboard from './pages/AdminDashboard'
+import PrivateRoute from './components/PrivateRoute'
+
 function App() {
   return (
     <>
@@ -21,6 +25,12 @@ function App() {
         <Route path="/services" element={<Services />} />
         <Route path="/careers" element={<Careers />} />
         <Route path="/payment" element={<Payment />} />
+
+        {/* Admin Routes */}
+        <Route path="/admin" element={<AdminLogin />} />
+        <Route element={<PrivateRoute />}>
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        </Route>
       </Routes>
     </>
   )
