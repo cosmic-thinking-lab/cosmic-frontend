@@ -1,18 +1,20 @@
 import React from 'react';
-import { Navigate, Outlet, useSearchParams } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 
 const PrivateRoute = () => {
-    const [searchParams] = useSearchParams();
-    const key = searchParams.get('key');
-
-    // Check for private key in URL or existing session
-    if (key === 'access-admin') {
-        localStorage.setItem('isAdminAuthenticated', 'true');
+    // Check for token existence
+    const token = localStorage.getItem('adminToken');
+    
+    // Legacy support: Clear old flag if it exists
+    if (localStorage.getItem('isAdminAuthenticated')) {
+        localStorage.removeItem('isAdminAuthenticated');
     }
 
-    const isAuthenticated = localStorage.getItem('isAdminAuthenticated') === 'true';
+    // In a real app, you might want to decode the token to check expiration here
+    // or rely on the dashboard API call to fail with 401 and redirect.
+    const isAuthenticated = !!token;
 
-    return isAuthenticated ? <Outlet /> : <Navigate to="/" replace />;
+    return isAuthenticated ? <Outlet /> : <Navigate to="/admin" replace />;
 };
 
 export default PrivateRoute;

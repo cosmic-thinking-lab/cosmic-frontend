@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { usePublicApi } from "../hooks/usePublicApi";
 
 type FormState = {
   name: string;
@@ -18,9 +19,9 @@ const initialState: FormState = {
 
 export default function ContactCTA(): JSX.Element {
   const [form, setForm] = useState<FormState>(initialState);
-  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { submitContactForm, loading } = usePublicApi();
 
   const onChange =
     (key: keyof FormState) =>
@@ -43,35 +44,14 @@ export default function ContactCTA(): JSX.Element {
       setError(v);
       return;
     }
-    setSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:9090/api/solution/contact", {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          company: form.company,
-          budget: form.budget,
-          message: form.message
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to send message. Please try again.");
-      }
-
+      await submitContactForm(form);
       setSubmitted(true);
       setForm(initialState);
     } catch (err) {
       setError("Something went wrong. Please try again later or email us directly.");
       console.error(err);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -185,10 +165,10 @@ export default function ContactCTA(): JSX.Element {
                 <div className="text-center pt-8">
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={loading}
                     className="bg-white text-black px-12 py-4 rounded-full font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 text-lg"
                   >
-                    {submitting ? "Sending..." : "Send Message"}
+                    {loading ? "Sending..." : "Send Message"}
                   </button>
                 </div>
               </>

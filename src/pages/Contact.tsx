@@ -1,6 +1,7 @@
 import Footer from '../components/Footer'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
+import { usePublicApi } from '../hooks/usePublicApi'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -12,6 +13,7 @@ export default function ContactPage() {
   })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const { submitContactForm } = usePublicApi()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({
@@ -26,20 +28,7 @@ export default function ContactPage() {
     setErrorMessage('')
 
     try {
-      const response = await fetch('http://localhost:9090/api/solution/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Something went wrong')
-      }
-
+      await submitContactForm(formData)
       setStatus('success')
       setFormData({
         name: '',

@@ -6,7 +6,7 @@ interface NavBarProps {
   isHome?: boolean;
 }
 
-export default function NavBar({ isHome = false }: NavBarProps): JSX.Element {
+export default function NavBar({ isHome = false }: NavBarProps): JSX.Element | null {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();

@@ -6,10 +6,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "gen-api": "openapi-generator-cli generate -i http://localhost:3000/api/docs.json -g typescript-axios -o src/api/generated"
   },
   "dependencies": {
-
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.556.0",
     "posthog-js": "^1.270.1",
@@ -20,6 +22,7 @@
     "three": "^0.181.2"
   },
   "devDependencies": {
+    "@openapitools/openapi-generator-cli": "^2.29.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.181.0",

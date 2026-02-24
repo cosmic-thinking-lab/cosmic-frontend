@@ -1,20 +1,31 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAdmin } from '../hooks/useAdmin';
 
 const AdminLogin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
+    const { login, loading } = useAdmin();
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Hardcoded credentials for now
-        if (email === 'admin@cosmic.com' && password === 'admin123') {
-            localStorage.setItem('isAdminAuthenticated', 'true');
-            navigate('/admin/dashboard');
-        } else {
-            setError('Invalid email or password');
+        setError('');
+
+        try {
+            const data = await login({ email, password });
+            if (data.success) {
+                localStorage.setItem('adminToken', data.token);
+                // Remove insecure flag if it exists
+                if (localStorage.getItem('isAdminAuthenticated')) {
+                    localStorage.removeItem('isAdminAuthenticated');
+                }
+                navigate('/admin/dashboard');
+            }
+        } catch (err: any) {
+            console.error('Login error:', err);
+            setError(err.message || 'An error occurred. Please check backend connection.');
         }
     };
 
@@ -51,9 +62,10 @@ const AdminLogin = () => {
                     {error && <p className="text-red-400 text-sm text-center font-medium">{error}</p>}
                     <button
                         type="submit"
-                        className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all duration-300 transform active:scale-[0.98]"
+                        disabled={loading}
+                        className="w-full bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all duration-300 transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Sign In
+                        {loading ? 'Signing In...' : 'Sign In'}
                     </button>
                 </form>
             </div>

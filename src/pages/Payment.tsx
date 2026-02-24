@@ -2,6 +2,7 @@ import { useState } from 'react'
 import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
 import { CheckCircle2 } from 'lucide-react'
+import { usePublicApi } from '../hooks/usePublicApi'
 
 // Add Razorpay type definition
 declare global {
@@ -22,6 +23,8 @@ export default function Payment() {
     const [paymentSuccess, setPaymentSuccess] = useState(false)
     const [paymentId, setPaymentId] = useState('')
 
+    const { createPaymentOrder, verifyPayment } = usePublicApi();
+
     const handlePayment = async (e: React.FormEvent) => {
         e.preventDefault()
 
@@ -32,61 +35,76 @@ export default function Payment() {
 
         setLoading(true)
 
-        const options = {
-            key: "rzp_test_RtMpMMVMKTWqZz",
-            amount: Number(amount) * 100, // Amount in paise
-            currency: "INR",
-            name: "Cosmic Thinking Labs",
-            description: payFor || "Service Payment",
-            image: "/cosmic-logo.png",
-            handler: async function (response: any) {
-                setPaymentId(response.razorpay_payment_id)
-                setPaymentSuccess(true)
-                setLoading(false)
+        try {
+            // 1. Create Order via Backend
+            const orderData = {
+                serviceName: payFor || "Service Payment",
+                amount: Number(amount),
+                firstName,
+                lastName,
+                email,
+                mobile: mobileNumber,
+                notes
+            };
+            
+            const order = await createPaymentOrder(orderData);
+            // order contains: { orderId, amount, currency, paymentId (DB_ID) }
 
-                try {
-                    await fetch('http://localhost:9090/api/payment/success', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
+            const options = {
+                key: "rzp_test_RtMpMMVMKTWqZz", // We can also fetch this from backend if we want to be super strict, but it's public key
+                amount: order.amount,
+                currency: order.currency,
+                name: "Cosmic Thinking Labs",
+                description: payFor || "Service Payment",
+                image: "/cosmic-logo.png",
+                order_id: order.orderId, // PASSED FROM BACKEND
+                handler: async function (response: any) {
+                    setLoading(true);
+                    try {
+                        // 2. Verify Payment via Backend
+                        await verifyPayment({
+                            orderId: response.razorpay_order_id,
                             paymentId: response.razorpay_payment_id,
-                            amount: Number(amount),
-                            payFor: payFor || "Service Payment",
-                            firstName,
-                            lastName,
-                            email,
-                            mobileNumber,
-                            notes
-                        })
-                    });
-                    console.log('Payment success notification sent to backend');
-                } catch (error) {
-                    console.error('Failed to notify backend of payment success:', error);
+                            signature: response.razorpay_signature
+                        });
+                        
+                        setPaymentId(response.razorpay_payment_id);
+                        setPaymentSuccess(true);
+                        console.log('Payment verified successfully');
+                    } catch (error) {
+                        console.error('Payment verification failed:', error);
+                        alert('Payment verification failed. Please contact support.');
+                    } finally {
+                        setLoading(false);
+                    }
+                },
+                prefill: {
+                    name: `${firstName} ${lastName}`,
+                    email: email,
+                    contact: mobileNumber,
+                },
+                notes: {
+                    description: notes
+                },
+                theme: {
+                    color: "#161b22"
                 }
-            },
-            prefill: {
-                name: `${firstName} ${lastName}`,
-                email: email,
-                contact: mobileNumber,
-            },
-            notes: {
-                description: notes
-            },
-            theme: {
-                color: "#161b22"
-            }
-        };
+            };
 
-        const rzp1 = new window.Razorpay(options);
+            const rzp1 = new window.Razorpay(options);
 
-        rzp1.on('payment.failed', function (response: any) {
-            console.error("Payment Failed: " + response.error.description);
-            setLoading(false)
-        });
+            rzp1.on('payment.failed', function (response: any) {
+                console.error("Payment Failed: " + response.error.description);
+                setLoading(false);
+                alert("Payment Failed: " + response.error.description);
+            });
 
-        rzp1.open();
+            rzp1.open();
+        } catch (error) {
+            console.error('Failed to initiate payment:', error);
+            alert('Failed to initiate payment. Please try again.');
+            setLoading(false);
+        }
     }
 
     return (

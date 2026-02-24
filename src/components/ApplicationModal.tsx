@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { usePublicApi } from "../hooks/usePublicApi";
 
 type ApplicationFormState = {
     name: string;
@@ -23,13 +24,14 @@ interface ApplicationModalProps {
     isOpen: boolean;
     onClose: () => void;
     roleTitle: string;
+    jobId?: string; // Added optional jobId prop to interface, though not strictly used in loop yet, good for future
 }
 
 export default function ApplicationModal({ isOpen, onClose, roleTitle }: ApplicationModalProps): JSX.Element | null {
     const [form, setForm] = useState<ApplicationFormState>(initialState);
-    const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { submitApplication, loading } = usePublicApi();
 
     const isGeneralApplication = roleTitle === "General Application";
 
@@ -74,46 +76,25 @@ export default function ApplicationModal({ isOpen, onClose, roleTitle }: Applica
             setError(v);
             return;
         }
-        setSubmitting(true);
 
-        const finalRole = isGeneralApplication ? form.customRole : roleTitle;
+        const body = {
+            role: isGeneralApplication ? form.customRole : roleTitle,
+            name: form.name,
+            email: form.email,
+            phone: form.phone,
+            resumeLink: form.resumeLink,
+            about: form.info,
+            // If we had jobId, we'd pass it here. For now rely on role.
+            // My usage of endpoints.public.applications implies generic application endpoint
+        };
 
         try {
-            const url = isGeneralApplication
-                ? "http://localhost:9090/api/applications"
-                : "http://localhost:9090/api/jobs";
-
-            const body = {
-                role: isGeneralApplication ? form.customRole : roleTitle,
-                name: form.name,
-                email: form.email,
-                phone: form.phone,
-                resumeLink: form.resumeLink,
-                about: form.info
-            };
-
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to submit application. Please try again.");
-            }
-
+            await submitApplication(body, isGeneralApplication);
             setSubmitted(true);
             setForm(initialState);
-
-            // Auto close after success? Maybe keep it open to show success message.
         } catch (err) {
             setError("Something went wrong. Please try again later.");
             console.error(err);
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -248,10 +229,10 @@ export default function ApplicationModal({ isOpen, onClose, roleTitle }: Applica
 
                         <button
                             type="submit"
-                            disabled={submitting}
+                            disabled={loading}
                             className="w-full bg-white text-black py-4 rounded-lg font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 mt-4"
                         >
-                            {submitting ? "Submitting..." : "Submit Application"}
+                            {loading ? "Submitting..." : "Submit Application"}
                         </button>
                     </form>
                 )}
