@@ -48,6 +48,9 @@ export default function Payment() {
             };
             
             const order = await createPaymentOrder(orderData);
+            if (!order) {
+                throw new Error("Failed to create payment order.");
+            }
             // order contains: { orderId, amount, currency, paymentId (DB_ID) }
 
             const options = {
