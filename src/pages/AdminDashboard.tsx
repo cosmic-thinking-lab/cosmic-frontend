@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 import JobModal from '../components/JobModal';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronDown } from 'lucide-react';
 
 interface DashboardItem {
     _id: string;
     // Common fields
-    status?: string; // Some have status, some might not (Jobs have isActive)
+    status?: string;
     createdAt: string;
     
     // Application/Contact fields
     name?: string;
     email?: string;
-    phone?: string; // Add phone
-    role?: string; // Job Role applied for
+    phone?: string;
+    role?: string;
     message?: string;
     about?: string;
     resumeLink?: string;
@@ -31,6 +32,63 @@ interface DashboardItem {
     requirements?: string[];
 }
 
+// ─── Portal Dropdown ──────────────────────────────────────────────────────────
+interface StatusDropdownProps {
+    itemId: string;
+    currentStatus?: string;
+    anchorEl: HTMLButtonElement | null;
+    onSelect: (status: string) => void;
+    onClose: () => void;
+}
+
+const StatusDropdown: React.FC<StatusDropdownProps> = ({ currentStatus, anchorEl, onSelect, onClose }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Position relative to the anchor button using fixed coords
+    const rect = anchorEl?.getBoundingClientRect();
+    const top = rect ? rect.bottom + 6 : 0;
+    const right = rect ? window.innerWidth - rect.right : 0;
+
+    useEffect(() => {
+        const handleOutside = (e: MouseEvent) => {
+            if (
+                menuRef.current && !menuRef.current.contains(e.target as Node) &&
+                anchorEl && !anchorEl.contains(e.target as Node)
+            ) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [anchorEl, onClose]);
+
+    const statusOptions = [
+        { value: 'PENDING',  color: 'text-yellow-400' },
+        { value: 'REVIEWED', color: 'text-green-400' },
+        { value: 'REJECTED', color: 'text-red-400' },
+    ];
+
+    return ReactDOM.createPortal(
+        <div
+            ref={menuRef}
+            style={{ position: 'fixed', top, right, zIndex: 9999 }}
+            className="w-36 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+        >
+            {statusOptions.map(({ value, color }) => (
+                <button
+                    key={value}
+                    onClick={() => onSelect(value)}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors hover:bg-white/5 ${color} ${currentStatus === value ? 'bg-white/5' : ''}`}
+                >
+                    {value}
+                </button>
+            ))}
+        </div>,
+        document.body
+    );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState<'contacts' | 'applications' | 'jobs'>('contacts');
     const [data, setData] = useState<DashboardItem[]>([]);
@@ -39,6 +97,10 @@ const AdminDashboard = () => {
     
     const [isJobModalOpen, setIsJobModalOpen] = useState(false);
     const [editingJob, setEditingJob] = useState<DashboardItem | null>(null);
+
+    // Track which row's dropdown is open + its anchor button element
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
     const loadItems = useCallback(async (tab: string) => {
         try {
@@ -62,12 +124,21 @@ const AdminDashboard = () => {
         loadItems(activeTab);
     }, [activeTab, loadItems, navigate]);
 
-    const handleUpdateStatus = async (id: string, tab: string, currentStatus?: string) => {
-        // Use default 'PENDING' if status is undefined for applications/contacts
-        const statusToUse = currentStatus || 'PENDING';
-        const nextStatus = statusToUse === 'PENDING' ? 'REVIEWED' : 'PENDING';
+    const handleToggleDropdown = (e: React.MouseEvent<HTMLButtonElement>, itemId: string) => {
+        if (openDropdownId === itemId) {
+            setOpenDropdownId(null);
+            setAnchorEl(null);
+        } else {
+            setOpenDropdownId(itemId);
+            setAnchorEl(e.currentTarget);
+        }
+    };
+
+    const handleStatusSelect = async (id: string, tab: string, newStatus: string) => {
+        setOpenDropdownId(null);
+        setAnchorEl(null);
         try {
-            const success = await updateItemStatus(id, tab, nextStatus);
+            const success = await updateItemStatus(id, tab, newStatus);
             if (success) loadItems(activeTab);
         } catch (error) {
             console.error('Update error:', error);
@@ -79,17 +150,6 @@ const AdminDashboard = () => {
 
     const handleToggleJobStatus = async (id: string, currentIsActive: boolean) => {
         try {
-            const success = await updateItemStatus(id, 'jobs', (!currentIsActive).toString()); // API expects boolean logic mapped to status patch? 
-            // Wait, updateItemStatus in useAdmin maps 'jobs' to `adminJobsIdStatusPatch`. 
-            // `adminJobsIdStatusPatch` expects `{ status }` or `{ isActive }`?
-            // In useAdmin: `const body = { status };`... `api.adminJobsIdStatusPatch(id, body);`
-            // In adminRoutes: `req.body` -> `{ isActive }` schema. 
-            // DISCREPANCY: useAdmin sends `{ status: string }`, backend expects `{ isActive: boolean }`.
-            
-            // I need to fix useAdmin's `updateItemStatus` to handle this.
-            // For now, I will modify `handleToggleJobStatus` to call `updateJob` (full update) instead of `updateItemStatus` if `updateItemStatus` is broken for booleans.
-            // OR I can use `updateJob` to toggle `isActive`.
-            
             await updateJob(id, { isActive: !currentIsActive });
             loadItems(activeTab);
         } catch (error) {
@@ -112,8 +172,7 @@ const AdminDashboard = () => {
         try {
             await updateJob(editingJob._id, jobData);
             loadItems(activeTab);
-            setEditingJob(null); // Close modal is handled by onSubmit in Modal? No, Modal calls logic then closes? 
-            // JobModal logic: onSubmit awaits then onClose.
+            setEditingJob(null);
         } catch (error) {
             console.error('Update job error', error);
             alert('Failed to update job');
@@ -129,7 +188,7 @@ const AdminDashboard = () => {
             console.error('Delete job error', error);
             alert('Failed to delete job');
         }
-    }
+    };
 
     const openCreateModal = () => {
         setEditingJob(null);
@@ -166,6 +225,13 @@ const AdminDashboard = () => {
                 <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400 text-center">Status</th>
             </tr>
         );
+    };
+
+    const statusBadgeClass = (status?: string) => {
+        if (status === 'PENDING')  return 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30';
+        if (status === 'REVIEWED') return 'bg-green-500/20 text-green-400 hover:bg-green-500/30';
+        if (status === 'REJECTED') return 'bg-red-500/20 text-red-400 hover:bg-red-500/30';
+        return 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30';
     };
 
     return (
@@ -208,97 +274,109 @@ const AdminDashboard = () => {
                     )}
                 </div>
 
-                <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-white/5 border-b border-white/10">
-                                {renderTableHeaders()}
-                            </thead>
-                            <tbody className="divide-y divide-white/10">
-                                {loading ? (
-                                    <tr><td colSpan={5} className="px-6 py-20 text-center text-gray-400">Loading data...</td></tr>
-                                ) : data.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-6 py-20 text-center text-gray-400">No records found.</td></tr>
-                                ) : (
-                                    data.map((item) => (
-                                        <tr key={item._id} className="hover:bg-white/5 transition-colors">
-                                            {activeTab === 'jobs' ? (
-                                                <>
-                                                    <td className="px-6 py-6 font-medium">
-                                                        <div className="text-white text-lg">{item.title}</div>
-                                                        <div className="text-sm text-purple-400">{item.department}</div>
-                                                        <div className="text-xs text-gray-500 mt-1">{item.type} • {item.location}</div>
-                                                    </td>
-                                                    <td className="px-6 py-6 text-sm text-gray-400 max-w-xs truncate">
-                                                        {item.description}
-                                                    </td>
-                                                    <td className="px-6 py-6 text-gray-400 text-sm">
-                                                        {new Date(item.createdAt).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="px-6 py-6 text-center">
-                                                         <button
-                                                            onClick={() => handleToggleJobStatus(item._id, item.isActive || false)}
-                                                            className={`px-4 py-1.5 rounded-full text-xs font-bold ${item.isActive
-                                                                ? 'bg-green-500/20 text-green-400'
-                                                                : 'bg-gray-500/20 text-gray-400'
-                                                                }`}
+                <div className="bg-white/5 border border-white/10 rounded-2xl overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-white/5 border-b border-white/10">
+                            {renderTableHeaders()}
+                        </thead>
+                        <tbody className="divide-y divide-white/10">
+                            {loading ? (
+                                <tr><td colSpan={5} className="px-6 py-20 text-center text-gray-400">Loading data...</td></tr>
+                            ) : data.length === 0 ? (
+                                <tr><td colSpan={5} className="px-6 py-20 text-center text-gray-400">No records found.</td></tr>
+                            ) : (
+                                data.map((item) => (
+                                    <tr key={item._id} className="hover:bg-white/5 transition-colors">
+                                        {activeTab === 'jobs' ? (
+                                            <>
+                                                <td className="px-6 py-6 font-medium">
+                                                    <div className="text-white text-lg">{item.title}</div>
+                                                    <div className="text-sm text-purple-400">{item.department}</div>
+                                                    <div className="text-xs text-gray-500 mt-1">{item.type} • {item.location}</div>
+                                                </td>
+                                                <td className="px-6 py-6 text-sm text-gray-400 max-w-xs truncate">
+                                                    {item.description}
+                                                </td>
+                                                <td className="px-6 py-6 text-gray-400 text-sm">
+                                                    {new Date(item.createdAt).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-6 text-center">
+                                                    <button
+                                                        onClick={() => handleToggleJobStatus(item._id, item.isActive || false)}
+                                                        className={`px-4 py-1.5 rounded-full text-xs font-bold ${item.isActive
+                                                            ? 'bg-green-500/20 text-green-400'
+                                                            : 'bg-gray-500/20 text-gray-400'
+                                                            }`}
+                                                    >
+                                                        {item.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                                    </button>
+                                                </td>
+                                                <td className="px-6 py-6 text-right">
+                                                    <div className="flex items-center justify-end space-x-2">
+                                                        <button 
+                                                            onClick={() => openEditModal(item)}
+                                                            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                                                         >
-                                                            {item.isActive ? 'ACTIVE' : 'INACTIVE'}
+                                                            <Edit2 size={18} />
                                                         </button>
-                                                    </td>
-                                                    <td className="px-6 py-6 text-right">
-                                                        <div className="flex items-center justify-end space-x-2">
-                                                            <button 
-                                                                onClick={() => openEditModal(item)}
-                                                                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                                            >
-                                                                <Edit2 size={18} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleDeleteJob(item._id)}
-                                                                className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                            >
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <td className="px-6 py-6 font-medium">
-                                                        <div className="text-white">{item.name || item.role}</div>
-                                                        <div className="text-sm text-gray-400">{item.email}</div>
-                                                       {item.phone && <div className="text-sm text-gray-500">{item.phone}</div>}
-                                                    </td>
-                                                    <td className="px-6 py-6">
-                                                        <div className="text-sm text-gray-300">{item.message || item.about}</div>
-                                                        {item.resumeLink && (
-                                                            <a href={item.resumeLink} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 text-sm font-medium mt-1 inline-block">
-                                                                View Resume
-                                                            </a>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-6 text-gray-400 text-sm">
-                                                        {new Date(item.createdAt).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="px-6 py-6 text-center">
-                                                        <button
-                                                            onClick={() => handleUpdateStatus(item._id, activeTab, item.status)}
-                                                            className={`px-4 py-1.5 rounded-full text-xs font-bold ${item.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                                item.status === 'REVIEWED' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                                                                }`}
+                                                        <button 
+                                                            onClick={() => handleDeleteJob(item._id)}
+                                                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
                                                         >
-                                                            {item.status || 'ACTIVE'}
+                                                            <Trash2 size={18} />
                                                         </button>
-                                                    </td>
-                                                </>
-                                            )}
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                                    </div>
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-6 py-6 font-medium">
+                                                    <div className="text-white">{item.name || item.role}</div>
+                                                    <div className="text-sm text-gray-400">{item.email}</div>
+                                                    {item.phone && <div className="text-sm text-gray-500">{item.phone}</div>}
+                                                </td>
+                                                <td className="px-6 py-6">
+                                                    <div className="text-sm text-gray-300">{item.message || item.about}</div>
+                                                    {item.resumeLink && (
+                                                        <a href={item.resumeLink} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 text-sm font-medium mt-1 inline-block">
+                                                            View Resume
+                                                        </a>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-6 text-gray-400 text-sm">
+                                                    {new Date(item.createdAt).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-6 text-center">
+                                                    {/* Status badge — triggers portal dropdown */}
+                                                    <button
+                                                        onClick={(e) => handleToggleDropdown(e, item._id)}
+                                                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${statusBadgeClass(item.status)}`}
+                                                    >
+                                                        {item.status || 'PENDING'}
+                                                        <ChevronDown
+                                                            size={12}
+                                                            className={`transition-transform ${openDropdownId === item._id ? 'rotate-180' : ''}`}
+                                                        />
+                                                    </button>
+
+                                                    {/* Portal dropdown — renders directly on <body>, outside all overflow contexts */}
+                                                    {openDropdownId === item._id && (
+                                                        <StatusDropdown
+                                                            itemId={item._id}
+                                                            currentStatus={item.status}
+                                                            anchorEl={anchorEl}
+                                                            onSelect={(status) => handleStatusSelect(item._id, activeTab, status)}
+                                                            onClose={() => { setOpenDropdownId(null); setAnchorEl(null); }}
+                                                        />
+                                                    )}
+                                                </td>
+                                            </>
+                                        )}
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
             

@@ -1,67 +1,70 @@
 import Footer from "../components/Footer";
 import Reveal from "../components/Reveal";
 import ApplicationModal from "../components/ApplicationModal";
-import { ArrowUpRight } from "lucide-react";
-import { useState } from "react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { usePublicApi } from "../hooks/usePublicApi";
+
+// Converts a raw rupee value to LPA (Lakhs Per Annum)
+const toL = (value: number): string => {
+    const lpa = value / 1_00_000;
+    // Show decimal only if not a whole number
+    return Number.isInteger(lpa) ? `${lpa}` : `${parseFloat(lpa.toFixed(1))}`;
+};
+
+// Handles single values AND ranges like "500000-600000" → "5 – 6 LPA"
+const formatSalary = (salary: string): string => {
+    if (!salary) return '';
+    const parts = salary.split('-').map(s => s.trim());
+    const nums = parts.map(Number);
+    // If all parts are valid numbers, format as LPA
+    if (nums.every(n => !isNaN(n) && n > 0)) {
+        return `${nums.map(toL).join(' – ')} LPA`;
+    }
+    // Fallback: return as-is (e.g. "Negotiable")
+    return salary;
+};
+
+
+interface Job {
+    _id: string;
+    title: string;
+    department?: string;
+    location?: string;
+    type?: string;
+    description?: string;
+    salary?: string;
+    isActive?: boolean;
+}
 
 export default function Careers(): JSX.Element {
     const [expandedRole, setExpandedRole] = useState<string | null>(null);
     const [selectedRole, setSelectedRole] = useState<string | null>(null);
+    const [jobs, setJobs] = useState<Job[]>([]);
+    const [jobsLoading, setJobsLoading] = useState(true);
+    const [jobsError, setJobsError] = useState<string | null>(null);
 
-    const roles = [
-        {
-            title: "Senior Product Designer",
-            department: "Design",
-            location: "Remote",
-            type: "Full-time",
-            description: `We are looking for a Senior Product Designer to lead the design of our core products. You will work closely with engineering and product teams to create intuitive and beautiful experiences for our users. You should have a strong portfolio showcasing your ability to solve complex design problems.
+    const { fetchJobs } = usePublicApi();
 
-            In this role, you will be responsible for the entire design lifecycle, from user research and wireframing to high-fidelity prototyping and visual design. You will champion the user, ensuring that every interaction is thoughtful, delightful, and serves a clear purpose. We believe that good design is not just about how things look, but how they work.
-
-            Key Responsibilities:
-            • Lead design projects across the entire product lifecycle and multiple product launches.
-            • Work with small multi-disciplinary teams. You’ll partner closely with engineering, product, and business folks to find elegant but practical solutions to design challenges.
-            • Rapidly produce multiple concepts and prototypes; knowing when to apply pixel-perfect attention to detail, and when to make low-fi sketches and prototypes.
-            • Conduct user research and usability testing to validate your designs and uncover new opportunities.
-            • Mentor junior designers and help build a culture of design excellence within the company.
-
-            Requirements:
-            • 5+ years of experience in product design, ideally at a tech company or startup.
-            • A stunning portfolio that demonstrates not just visual polish, but a deep understanding of user experience and design thinking.
-            • Proficiency with modern design tools like Figma, Principle, or Framer.
-            • Experience with design systems and maintaining consistency across a complex product suite.
-            • Strong communication skills – you should be able to articulate your design decisions and collaborate effectively with non-designers.
-            • A passion for technology and a curiosity about how things are built.
-
-            What We Offer:
-            • Competitive salary and equity package.
-            • Flexible remote-first work environment.
-            • Comprehensive health, dental, and vision insurance.
-            • Generous learning and development budget.
-            • The opportunity to work on challenging problems that have a real impact on the world.`
-        },
-        {
-            title: "Full Stack Engineer",
-            department: "Engineering",
-            location: "Remote / New York",
-            type: "Full-time",
-            description: "Join our engineering team to build scalable and high-performance applications. You will work across the stack, from database design to frontend implementation. Experience with React, Node.js, and cloud infrastructure (AWS/GCP) is required."
-        },
-        {
-            title: "Growth Strategy Lead",
-            department: "Strategy",
-            location: "Remote",
-            type: "Contract",
-            description: "We need a Growth Strategy Lead to drive our user acquisition and retention strategies. You will analyze data, identify opportunities, and execute experiments to grow our user base. A background in data analysis and marketing is essential."
-        },
-        {
-            title: "Frontend Developer (Creative)",
-            department: "Engineering",
-            location: "Remote",
-            type: "Full-time",
-            description: "Are you passionate about creative coding and UI animations? We are looking for a Frontend Developer who specializes in creating immersive web experiences. Proficiency in Three.js, WebGL, and GSAP is highly desirable."
-        },
-    ];
+    useEffect(() => {
+        const loadJobs = async () => {
+            setJobsLoading(true);
+            setJobsError(null);
+            try {
+                const data = await fetchJobs();
+                // Only show active jobs on the public page
+                const active = (data || []).filter((j: Job) => j.isActive !== false);
+                setJobs(active);
+            } catch (err: any) {
+                console.error('Failed to load jobs:', err);
+                setJobsError('Could not load open positions. Please try again later.');
+            } finally {
+                setJobsLoading(false);
+            }
+        };
+        loadJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const benefits = [
         {
@@ -82,12 +85,8 @@ export default function Careers(): JSX.Element {
         },
     ];
 
-    const toggleRole = (title: string) => {
-        if (expandedRole === title) {
-            setExpandedRole(null);
-        } else {
-            setExpandedRole(title);
-        }
+    const toggleRole = (id: string) => {
+        setExpandedRole(expandedRole === id ? null : id);
     };
 
     const handleApply = (e: React.MouseEvent, title: string) => {
@@ -143,54 +142,80 @@ export default function Careers(): JSX.Element {
                             <h2 className="text-3xl font-bold mb-12">Open Positions</h2>
                         </Reveal>
 
-                        <div className="space-y-4">
-                            {roles.map((role, idx) => (
-                                <Reveal key={role.title} delayMs={300 + (idx * 50)}>
-                                    <div
-                                        onClick={() => toggleRole(role.title)}
-                                        className="group relative border border-white/10 bg-white/5 overflow-hidden hover:bg-white/10 transition-all duration-300 cursor-pointer rounded-lg"
-                                    >
-                                        <div className="p-8">
-                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors flex items-center gap-3">
-                                                        {role.title}
-                                                    </h3>
-                                                    <div className="flex gap-4 text-sm text-gray-400">
-                                                        <span>{role.department}</span>
-                                                        <span>•</span>
-                                                        <span>{role.location}</span>
-                                                        <span>•</span>
-                                                        <span>{role.type}</span>
+                        {/* Loading state */}
+                        {jobsLoading && (
+                            <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+                                <Loader2 size={24} className="animate-spin" />
+                                <span>Loading open positions...</span>
+                            </div>
+                        )}
+
+                        {/* Error state */}
+                        {!jobsLoading && jobsError && (
+                            <div className="text-center py-20 text-gray-400">
+                                <p>{jobsError}</p>
+                            </div>
+                        )}
+
+                        {/* Empty state */}
+                        {!jobsLoading && !jobsError && jobs.length === 0 && (
+                            <div className="text-center py-20 border border-white/10 rounded-2xl bg-white/5">
+                                <p className="text-gray-400 text-lg">No open positions at the moment.</p>
+                                <p className="text-gray-500 text-sm mt-2">Check back soon or send us a general application below.</p>
+                            </div>
+                        )}
+
+                        {/* Jobs list */}
+                        {!jobsLoading && !jobsError && jobs.length > 0 && (
+                            <div className="space-y-4">
+                                {jobs.map((job, idx) => (
+                                    <Reveal key={job._id} delayMs={300 + (idx * 50)}>
+                                        <div
+                                            onClick={() => toggleRole(job._id)}
+                                            className="group relative border border-white/10 bg-white/5 overflow-hidden hover:bg-white/10 transition-all duration-300 cursor-pointer rounded-lg"
+                                        >
+                                            <div className="p-8">
+                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors flex items-center gap-3">
+                                                            {job.title}
+                                                        </h3>
+                                                        <div className="flex flex-wrap gap-3 text-sm text-gray-400">
+                                                            {job.department && <span>{job.department}</span>}
+                                                            {job.department && job.location && <span>•</span>}
+                                                            {job.location && <span>{job.location}</span>}
+                                                            {job.type && <><span>•</span><span>{job.type}</span></>}
+                                                            {job.salary && <><span>•</span><span className="text-purple-400">{formatSalary(job.salary)}</span></>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <button
+                                                            onClick={(e) => handleApply(e, job.title)}
+                                                            className="px-6 py-2 bg-white text-black rounded-full font-bold text-sm hover:bg-gray-200 transition-colors z-10"
+                                                        >
+                                                            Apply Now
+                                                        </button>
+                                                        <ArrowUpRight
+                                                            size={20}
+                                                            className={`text-gray-400 transition-transform duration-300 ${expandedRole === job._id ? 'rotate-180' : ''}`}
+                                                        />
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-4">
-                                                    <button
-                                                        onClick={(e) => handleApply(e, role.title)}
-                                                        className="px-6 py-2 bg-white text-black rounded-full font-bold text-sm hover:bg-gray-200 transition-colors z-10"
-                                                    >
-                                                        Apply Now
-                                                    </button>
-                                                    <ArrowUpRight
-                                                        size={20}
-                                                        className={`text-gray-400 transition-transform duration-300 ${expandedRole === role.title ? 'rotate-180' : ''}`}
-                                                    />
-                                                </div>
+                                            </div>
+
+                                            {/* Expandable description */}
+                                            <div
+                                                className={`px-8 transition-all duration-300 ease-in-out ${expandedRole === job._id ? 'max-h-96 pb-8 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}
+                                            >
+                                                <p className="text-gray-300 leading-relaxed border-t border-white/10 pt-4 whitespace-pre-line">
+                                                    {job.description || 'No description provided.'}
+                                                </p>
                                             </div>
                                         </div>
-
-                                        <div
-                                            className={`px-8 transition-all duration-300 ease-in-out ${expandedRole === role.title ? 'max-h-96 pb-8 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'
-                                                }`}
-                                        >
-                                            <p className="text-gray-300 leading-relaxed border-t border-white/10 pt-4 whitespace-pre-line">
-                                                {role.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </Reveal>
-                            ))}
-                        </div>
+                                    </Reveal>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </section>
 

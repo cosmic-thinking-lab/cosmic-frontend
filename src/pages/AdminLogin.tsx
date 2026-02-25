@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
+import { Eye, EyeOff } from 'lucide-react';
 
 const AdminLogin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const { login, loading } = useAdmin();
@@ -16,7 +18,7 @@ const AdminLogin = () => {
         try {
             const data = await login({ email, password });
             if (data.success) {
-                localStorage.setItem('adminToken', data.token);
+                localStorage.setItem('adminToken', data.token || '');
                 // Remove insecure flag if it exists
                 if (localStorage.getItem('isAdminAuthenticated')) {
                     localStorage.removeItem('isAdminAuthenticated');
@@ -50,14 +52,23 @@ const AdminLogin = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-400 mb-2">Password</label>
-                        <input
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-inter"
-                            placeholder="••••••••"
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-inter pr-12"
+                                placeholder="••••••••"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors focus:outline-none"
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
                     </div>
                     {error && <p className="text-red-400 text-sm text-center font-medium">{error}</p>}
                     <button

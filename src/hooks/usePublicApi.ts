@@ -170,12 +170,29 @@ export const usePublicApi = () => {
         }
     };
 
+    const fetchJobs = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await jobsApi.jobsGet();
+            const result: any = response.data;
+            // Backend returns { success: true, data: [...] } or just an array
+            return (result?.data ?? result) as any[];
+        } catch (err: any) {
+            setError(err.message || 'Failed to fetch jobs');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return { 
         submitContactForm, 
         submitApplication, 
         recordPaymentSuccess, 
         createPaymentOrder, 
-        verifyPayment, 
+        verifyPayment,
+        fetchJobs,
         loading, 
         error 
     };
