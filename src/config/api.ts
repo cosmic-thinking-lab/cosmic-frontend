@@ -1,5 +1,5 @@
 // Centralized API configuration
-export const API_BASE_URL = 'http://64.227.146.144:3003/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://apis-cosmic.duckdns.org/api';
 
 export const endpoints = {
     admin: {
@@ -15,7 +15,7 @@ export const endpoints = {
     public: {
         contact: `${API_BASE_URL}/solution/contact`,
         applications: `${API_BASE_URL}/applications`,
-        jobs: `${API_BASE_URL}/jobs`, 
+        jobs: `${API_BASE_URL}/jobs`,
         paymentSuccess: `${API_BASE_URL}/payments/success`,
         createPayment: `${API_BASE_URL}/payments/create`,
         verifyPayment: `${API_BASE_URL}/payments/verify`

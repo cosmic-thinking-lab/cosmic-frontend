@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { endpoints } from '../config/api';
+import { endpoints, API_BASE_URL } from '../config/api';
 import { AdminApi, JobsApi, Configuration } from '../api/generated';
 
 interface DashboardItem {
@@ -30,7 +30,7 @@ export const useAdmin = () => {
         setLoading(true);
         setError(null);
         try {
-            const api = new AdminApi(new Configuration({ basePath: 'http://64.227.146.144:3003/api' }));
+            const api = new AdminApi(new Configuration({ basePath: API_BASE_URL }));
             const response = await api.adminLoginPost(credentials);
             return response.data;
         } catch (err: any) {
@@ -45,8 +45,8 @@ export const useAdmin = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('adminToken');
-            const config = new Configuration({ 
-                basePath: 'http://64.227.146.144:3003/api',
+            const config = new Configuration({
+                basePath: API_BASE_URL,
                 accessToken: token || ''
             });
             const api = new AdminApi(config);
@@ -61,7 +61,7 @@ export const useAdmin = () => {
             } else {
                 return [];
             }
-            
+
             // Axios response.data IS the body. 
             // Previous code expected result.data.
             // Swagger response assumes 200 OK returns the list directly or { success, data }?
@@ -69,8 +69,8 @@ export const useAdmin = () => {
             // My annotated routes return `res.status(200).json({ success: true, data: ... })` (standard controller pattern)
             // But my Swagger annotation just said "List of contacts". 
             // If the controller returns { success, data }, then response.data will have .data.
-            
-            const result: any = response.data; 
+
+            const result: any = response.data;
             return result.success ? result.data as DashboardItem[] : [];
         } catch (err: any) {
             setError(err.message);
@@ -83,12 +83,12 @@ export const useAdmin = () => {
     const updateItemStatus = async (id: string, tab: string, status: string) => {
         try {
             const token = localStorage.getItem('adminToken');
-            const config = new Configuration({ 
-                basePath: 'http://64.227.146.144:3003/api',
+            const config = new Configuration({
+                basePath: API_BASE_URL,
                 accessToken: token || ''
             });
             const api = new AdminApi(config);
-            
+
             if (tab === 'contacts') {
                 await api.adminContactsIdPatch(id, { status });
             } else if (tab === 'applications') {
@@ -97,7 +97,7 @@ export const useAdmin = () => {
                 // The API expects a boolean isActive, but our hook receives a string status
                 await api.adminJobsIdStatusPatch(id, { isActive: status === 'true' });
             }
-            
+
             return true;
         } catch (err: any) {
             setError(err.message);
@@ -109,11 +109,11 @@ export const useAdmin = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('adminToken');
-            const config = new Configuration({ 
-                basePath: 'http://64.227.146.144:3003/api',
+            const config = new Configuration({
+                basePath: API_BASE_URL,
                 accessToken: token || ''
             });
-            const api = new JobsApi(config); 
+            const api = new JobsApi(config);
             // In JobsApi, the method for POST /jobs is jobsPost
             const response = await api.jobsPost(jobData);
             return response.data;
@@ -128,9 +128,9 @@ export const useAdmin = () => {
     const updateJob = async (id: string, jobData: any) => {
         setLoading(true);
         try {
-             const token = localStorage.getItem('adminToken');
-            const config = new Configuration({ 
-                basePath: 'http://64.227.146.144:3003/api',
+            const token = localStorage.getItem('adminToken');
+            const config = new Configuration({
+                basePath: API_BASE_URL,
                 accessToken: token || ''
             });
             const api = new AdminApi(config);
@@ -145,11 +145,11 @@ export const useAdmin = () => {
     };
 
     const deleteJob = async (id: string) => {
-         setLoading(true);
+        setLoading(true);
         try {
-             const token = localStorage.getItem('adminToken');
-            const config = new Configuration({ 
-                basePath: 'http://64.227.146.144:3003/api',
+            const token = localStorage.getItem('adminToken');
+            const config = new Configuration({
+                basePath: API_BASE_URL,
                 accessToken: token || ''
             });
             const api = new AdminApi(config);
@@ -164,14 +164,14 @@ export const useAdmin = () => {
         }
     }
 
-    return { 
-        login, 
-        fetchDashboardData, 
-        updateItemStatus, 
-        createJob, 
-        updateJob, 
-        deleteJob, 
-        loading, 
-        error 
+    return {
+        login,
+        fetchDashboardData,
+        updateItemStatus,
+        createJob,
+        updateJob,
+        deleteJob,
+        loading,
+        error
     };
 };

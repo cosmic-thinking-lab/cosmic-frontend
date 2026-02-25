@@ -19,7 +19,7 @@ import type { Configuration } from './configuration';
 import type { AxiosPromise, AxiosInstance, RawAxiosRequestConfig } from 'axios';
 import globalAxios from 'axios';
 
-export const BASE_PATH = "http://64.227.146.144:3003/api".replace(/\/+$/, "");
+export const BASE_PATH = (import.meta.env.VITE_API_BASE_URL || "https://apis-cosmic.duckdns.org/api").replace(/\/+$/, "");
 
 export const COLLECTION_FORMATS = {
     csv: ",",
