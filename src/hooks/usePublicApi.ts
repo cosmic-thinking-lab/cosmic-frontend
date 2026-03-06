@@ -137,6 +137,23 @@ export const usePublicApi = () => {
         }
     };
 
+    const recordPaymentFailure = async (orderId: string, errorDescription?: string) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/payments/failed`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId, errorDescription })
+            });
+            if (!res.ok) {
+                console.error(`[recordPaymentFailure] Backend returned ${res.status} — is the backend restarted?`);
+            } else {
+                console.log('[recordPaymentFailure] Payment failure recorded in DB ✓');
+            }
+        } catch (err) {
+            console.error('[recordPaymentFailure] Network error:', err);
+        }
+    };
+
     const createPaymentOrder = async (orderData: any) => {
         setLoading(true);
         setError(null);
@@ -191,6 +208,7 @@ export const usePublicApi = () => {
         submitContactForm,
         submitApplication,
         recordPaymentSuccess,
+        recordPaymentFailure,
         createPaymentOrder,
         verifyPayment,
         fetchJobs,

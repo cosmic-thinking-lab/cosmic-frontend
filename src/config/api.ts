@@ -4,11 +4,15 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://apis-c
 export const endpoints = {
     admin: {
         login: `${API_BASE_URL}/admin/login`,
-        dashboard: (tab: string) => `${API_BASE_URL}/admin/${tab}`,
+        dashboard: (tab: string) => {
+            if (tab === 'payments') return `${API_BASE_URL}/payments/admin/all`;
+            return `${API_BASE_URL}/admin/${tab}`;
+        },
         updateStatus: (id: string, tab: string) => {
             if (tab === 'contacts') return `${API_BASE_URL}/admin/contacts/${id}`;
             if (tab === 'applications') return `${API_BASE_URL}/admin/applications/${id}/status`;
             if (tab === 'jobs') return `${API_BASE_URL}/admin/jobs/${id}/status`;
+            if (tab === 'payments') return `${API_BASE_URL}/payments/admin/${id}/status`;
             return '';
         }
     },

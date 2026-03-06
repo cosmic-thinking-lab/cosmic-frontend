@@ -30,6 +30,15 @@ interface DashboardItem {
     description?: string;
     responsibilities?: string[];
     requirements?: string[];
+
+    // Payment fields
+    firstName?: string;
+    lastName?: string;
+    mobile?: string;
+    serviceName?: string;
+    amount?: number;
+    orderId?: string;
+    paymentId?: string;
 }
 
 // ─── Portal Dropdown ──────────────────────────────────────────────────────────
@@ -37,11 +46,12 @@ interface StatusDropdownProps {
     itemId: string;
     currentStatus?: string;
     anchorEl: HTMLButtonElement | null;
+    activeTab: 'contacts' | 'applications' | 'jobs' | 'payments';
     onSelect: (status: string) => void;
     onClose: () => void;
 }
 
-const StatusDropdown: React.FC<StatusDropdownProps> = ({ currentStatus, anchorEl, onSelect, onClose }) => {
+const StatusDropdown: React.FC<StatusDropdownProps> = ({ currentStatus, anchorEl, activeTab, onSelect, onClose }) => {
     const menuRef = useRef<HTMLDivElement>(null);
 
     // Position relative to the anchor button using fixed coords
@@ -62,10 +72,21 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ currentStatus, anchorEl
         return () => document.removeEventListener('mousedown', handleOutside);
     }, [anchorEl, onClose]);
 
-    const statusOptions = [
+    const statusOptions = activeTab === 'applications' ? [
         { value: 'PENDING',  color: 'text-yellow-400' },
-        { value: 'REVIEWED', color: 'text-green-400' },
+        { value: 'REVIEWED', color: 'text-blue-400' },
+        { value: 'HIRED', color: 'text-green-400' },
+        { value: 'ACCEPTED', color: 'text-emerald-400' },
         { value: 'REJECTED', color: 'text-red-400' },
+    ] : activeTab === 'payments' ? [
+        { value: 'pending', color: 'text-yellow-400' },
+        { value: 'success', color: 'text-green-400' },
+        { value: 'failed', color: 'text-red-400' },
+    ] : [
+        { value: 'pending', color: 'text-yellow-400' },
+        { value: 'contacted', color: 'text-blue-400' },
+        { value: 'resolved', color: 'text-slate-400' },
+        { value: 'accepted', color: 'text-emerald-400' },
     ];
 
     return ReactDOM.createPortal(
@@ -90,7 +111,7 @@ const StatusDropdown: React.FC<StatusDropdownProps> = ({ currentStatus, anchorEl
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AdminDashboard = () => {
-    const [activeTab, setActiveTab] = useState<'contacts' | 'applications' | 'jobs'>('contacts');
+    const [activeTab, setActiveTab] = useState<'contacts' | 'applications' | 'jobs' | 'payments'>('contacts');
     const [data, setData] = useState<DashboardItem[]>([]);
     const navigate = useNavigate();
     const { fetchDashboardData, updateItemStatus, createJob, updateJob, deleteJob, loading } = useAdmin();
@@ -217,6 +238,16 @@ const AdminDashboard = () => {
                 </tr>
             );
         }
+        if (activeTab === 'payments') {
+            return (
+                <tr>
+                    <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400">Transaction</th>
+                    <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400">Customer</th>
+                    <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400">Amount</th>
+                    <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400">Date</th>
+                </tr>
+            );
+        }
         return (
             <tr>
                 <th className="px-6 py-4 font-bold text-sm uppercase tracking-wider text-gray-400">Name / Role</th>
@@ -228,9 +259,14 @@ const AdminDashboard = () => {
     };
 
     const statusBadgeClass = (status?: string) => {
-        if (status === 'PENDING')  return 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30';
-        if (status === 'REVIEWED') return 'bg-green-500/20 text-green-400 hover:bg-green-500/30';
-        if (status === 'REJECTED') return 'bg-red-500/20 text-red-400 hover:bg-red-500/30';
+        const lowerStatus = status?.toLowerCase();
+        if (lowerStatus === 'pending')  return 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30';
+        if (lowerStatus === 'reviewed') return 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30';
+        if (lowerStatus === 'contacted') return 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30';
+        if (lowerStatus === 'hired' || lowerStatus === 'success') return 'bg-green-500/20 text-green-400 hover:bg-green-500/30';
+        if (lowerStatus === 'accepted') return 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30';
+        if (lowerStatus === 'resolved') return 'bg-slate-500/20 text-slate-400 hover:bg-slate-500/30';
+        if (lowerStatus === 'rejected' || lowerStatus === 'failed') return 'bg-red-500/20 text-red-400 hover:bg-red-500/30';
         return 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30';
     };
 
@@ -249,7 +285,7 @@ const AdminDashboard = () => {
 
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
                     <div className="flex flex-wrap gap-2 md:gap-4 w-full lg:w-auto">
-                        {['contacts', 'applications', 'jobs'].map((tab) => (
+                        {['contacts', 'applications', 'jobs', 'payments'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab as any)}
@@ -328,6 +364,26 @@ const AdminDashboard = () => {
                                                     </div>
                                                 </td>
                                             </>
+                                        ) : activeTab === 'payments' ? (
+                                            <>
+                                                <td className="px-6 py-6 font-medium">
+                                                    <div className="text-white text-sm font-mono">{item.paymentId || item.orderId || 'N/A'}</div>
+                                                    <div className="text-sm text-purple-400 font-bold mt-1">{item.serviceName}</div>
+                                                </td>
+                                                <td className="px-6 py-6 font-medium">
+                                                    <div className="text-white">{item.firstName} {item.lastName}</div>
+                                                    <div className="text-sm text-gray-400">{item.email}</div>
+                                                    {item.mobile && <div className="text-sm text-gray-500">{item.mobile}</div>}
+                                                </td>
+                                                <td className="px-6 py-6 font-medium">
+                                                    <div className={`text-lg font-bold ${item.status === 'failed' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                        &#8377;{item.amount?.toLocaleString() ?? '0'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-6 text-gray-400 text-sm">
+                                                    {new Date(item.createdAt).toLocaleDateString()}
+                                                </td>
+                                            </>
                                         ) : (
                                             <>
                                                 <td className="px-6 py-6 font-medium">
@@ -352,7 +408,7 @@ const AdminDashboard = () => {
                                                         onClick={(e) => handleToggleDropdown(e, item._id)}
                                                         className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${statusBadgeClass(item.status)}`}
                                                     >
-                                                        {item.status || 'PENDING'}
+                                                        {item.status || (activeTab === 'applications' ? 'PENDING' : 'pending')}
                                                         <ChevronDown
                                                             size={12}
                                                             className={`transition-transform ${openDropdownId === item._id ? 'rotate-180' : ''}`}
@@ -365,6 +421,7 @@ const AdminDashboard = () => {
                                                             itemId={item._id}
                                                             currentStatus={item.status}
                                                             anchorEl={anchorEl}
+                                                            activeTab={activeTab}
                                                             onSelect={(status) => handleStatusSelect(item._id, activeTab, status)}
                                                             onClose={() => { setOpenDropdownId(null); setAnchorEl(null); }}
                                                         />

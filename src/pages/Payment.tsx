@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import NavBar from '../components/NavBar'
 import Footer from '../components/Footer'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, XCircle, X } from 'lucide-react'
 import { usePublicApi } from '../hooks/usePublicApi'
 
 // Add Razorpay type definition
@@ -22,14 +22,15 @@ export default function Payment() {
     const [loading, setLoading] = useState(false)
     const [paymentSuccess, setPaymentSuccess] = useState(false)
     const [paymentId, setPaymentId] = useState('')
+    const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null)
 
-    const { createPaymentOrder, verifyPayment } = usePublicApi();
+    const { createPaymentOrder, verifyPayment, recordPaymentFailure } = usePublicApi();
 
     const handlePayment = async (e: React.FormEvent) => {
         e.preventDefault()
 
         if (!amount || !email || !mobileNumber || !firstName) {
-            alert('Please fill in all required fields')
+            setErrorModal({ title: 'Missing Fields', message: 'Please fill in all required fields.' })
             return
         }
 
@@ -53,6 +54,9 @@ export default function Payment() {
             }
             // order contains: { orderId, amount, currency, paymentId (DB_ID) }
 
+            // Store orderId so the failure handler can use it
+            const safeOrderId = order.orderId ?? '';
+
             const options = {
                 key: "rzp_test_RtMpMMVMKTWqZz", // We can also fetch this from backend if we want to be super strict, but it's public key
                 amount: order.amount,
@@ -60,7 +64,7 @@ export default function Payment() {
                 name: "Cosmic Thinking Labs",
                 description: payFor || "Service Payment",
                 image: "/cosmic-logo.png",
-                order_id: order.orderId, // PASSED FROM BACKEND
+                order_id: safeOrderId, // PASSED FROM BACKEND
                 handler: async function (response: any) {
                     setLoading(true);
                     try {
@@ -76,7 +80,10 @@ export default function Payment() {
                         console.log('Payment verified successfully');
                     } catch (error) {
                         console.error('Payment verification failed:', error);
-                        alert('Payment verification failed. Please contact support.');
+                        setErrorModal({
+                            title: 'Verification Failed',
+                            message: 'Payment verification failed. Please contact support with your transaction details.'
+                        });
                     } finally {
                         setLoading(false);
                     }
@@ -96,16 +103,29 @@ export default function Payment() {
 
             const rzp1 = new window.Razorpay(options);
 
-            rzp1.on('payment.failed', function (response: any) {
+            rzp1.on('payment.failed', async function (response: any) {
                 console.error("Payment Failed: " + response.error.description);
                 setLoading(false);
-                alert("Payment Failed: " + response.error.description);
+                // Close Razorpay modal first, then show our error modal
+                rzp1.close();
+                // Record the failure in the database
+                await recordPaymentFailure(safeOrderId, response.error.description);
+                // Defer state update so Razorpay's iframe fully unmounts before our modal renders
+                setTimeout(() => {
+                    setErrorModal({
+                        title: 'Payment Failed',
+                        message: response.error.description || 'Your payment could not be completed. Please try again.'
+                    });
+                }, 100);
             });
 
             rzp1.open();
         } catch (error) {
             console.error('Failed to initiate payment:', error);
-            alert('Failed to initiate payment. Please try again.');
+            setErrorModal({
+                title: 'Payment Initiation Failed',
+                message: 'Could not initiate payment. Please check your connection and try again.'
+            });
             setLoading(false);
         }
     }
@@ -113,6 +133,49 @@ export default function Payment() {
     return (
         <div className="min-h-screen bg-[#0a0a14] selection:bg-white/20">
             <NavBar />
+
+            {/* ── Error Modal ── */}
+            {errorModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                        onClick={() => setErrorModal(null)}
+                    />
+                    {/* Card */}
+                    <div className="relative w-full max-w-md bg-[#12121f] border border-white/10 rounded-2xl shadow-2xl p-8 text-center animate-fade-in">
+                        {/* Close button */}
+                        <button
+                            onClick={() => setErrorModal(null)}
+                            className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                            aria-label="Close"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        {/* Icon */}
+                        <div className="flex justify-center mb-5">
+                            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/20">
+                                <XCircle className="w-8 h-8 text-red-500" />
+                            </div>
+                        </div>
+
+                        {/* Title */}
+                        <h2 className="text-xl font-bold text-white mb-3">{errorModal.title}</h2>
+
+                        {/* Message */}
+                        <p className="text-gray-400 text-sm leading-relaxed mb-7">{errorModal.message}</p>
+
+                        {/* Dismiss */}
+                        <button
+                            onClick={() => setErrorModal(null)}
+                            className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-xl transition-colors border border-white/10"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <main className="relative pt-32 pb-20 px-6">
                 <div className="mx-auto max-w-2xl">

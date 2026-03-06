@@ -7,9 +7,20 @@ interface DashboardItem {
     name?: string;
     role?: string;
     email?: string;
+    phone?: string;
     message?: string;
     about?: string;
     resumeLink?: string;
+    
+    // Payments
+    firstName?: string;
+    lastName?: string;
+    mobile?: string;
+    serviceName?: string;
+    amount?: number;
+    orderId?: string;
+    paymentId?: string;
+
     status: string;
     createdAt: string;
 }
@@ -58,6 +69,16 @@ export const useAdmin = () => {
                 response = await api.adminApplicationsGet();
             } else if (tab === 'jobs') {
                 response = await api.adminJobsGet();
+            } else if (tab === 'payments') {
+                const res = await fetch(`${API_BASE_URL}/payments/admin/all`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error('Unauthorized');
+                    throw new Error('Failed to fetch payments');
+                }
+                const result = await res.json();
+                return result.success ? result.data as DashboardItem[] : [];
             } else {
                 return [];
             }
@@ -96,6 +117,19 @@ export const useAdmin = () => {
             } else if (tab === 'jobs') {
                 // The API expects a boolean isActive, but our hook receives a string status
                 await api.adminJobsIdStatusPatch(id, { isActive: status === 'true' });
+            } else if (tab === 'payments') {
+                const res = await fetch(`${API_BASE_URL}/payments/admin/${id}/status`, {
+                    method: 'PATCH',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ status })
+                });
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error('Unauthorized');
+                    throw new Error('Failed to update payment status');
+                }
             }
 
             return true;
