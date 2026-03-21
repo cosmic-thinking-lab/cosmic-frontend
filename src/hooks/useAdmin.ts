@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { endpoints, API_BASE_URL } from '../config/api';
+import { API_BASE_URL } from '../config/api';
 import { AdminApi, JobsApi, Configuration } from '../api/generated';
 
 interface DashboardItem {
@@ -11,6 +11,16 @@ interface DashboardItem {
     message?: string;
     about?: string;
     resumeLink?: string;
+    jobId?: { _id: string; title: string } | string;
+    
+    // Job Listing fields
+    title?: string;
+    department?: string;
+    location?: string;
+    type?: string;
+    isActive?: boolean;
+    salary?: string;
+    description?: string;
     
     // Payments
     firstName?: string;
@@ -20,6 +30,7 @@ interface DashboardItem {
     amount?: number;
     orderId?: string;
     paymentId?: string;
+    isManual?: boolean;
 
     status: string;
     createdAt: string;
@@ -28,14 +39,6 @@ interface DashboardItem {
 export const useAdmin = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const getAuthHeaders = useCallback(() => {
-        const token = localStorage.getItem('adminToken');
-        return {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        };
-    }, []);
 
     const login = async (credentials: any) => {
         setLoading(true);
@@ -68,7 +71,16 @@ export const useAdmin = () => {
             } else if (tab === 'applications') {
                 response = await api.adminApplicationsGet();
             } else if (tab === 'jobs') {
-                response = await api.adminJobsGet();
+                // Fetch manually so we can pass showAll=true to see inactive jobs too
+                const res = await fetch(`${API_BASE_URL}/admin/jobs?showAll=true`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error('Unauthorized');
+                    throw new Error('Failed to fetch jobs');
+                }
+                const result = await res.json();
+                return result.success ? result.data as DashboardItem[] : [];
             } else if (tab === 'payments') {
                 const res = await fetch(`${API_BASE_URL}/payments/admin/all`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -115,8 +127,9 @@ export const useAdmin = () => {
             } else if (tab === 'applications') {
                 await api.adminApplicationsAppIdStatusPatch(id, { status });
             } else if (tab === 'jobs') {
-                // The API expects a boolean isActive, but our hook receives a string status
-                await api.adminJobsIdStatusPatch(id, { isActive: status === 'true' });
+                // Convert 'active' / 'inactive' dropdown values to boolean
+                const isActive = status === 'active';
+                await api.adminJobsIdStatusPatch(id, { isActive });
             } else if (tab === 'payments') {
                 const res = await fetch(`${API_BASE_URL}/payments/admin/${id}/status`, {
                     method: 'PATCH',
@@ -196,7 +209,42 @@ export const useAdmin = () => {
         } finally {
             setLoading(false);
         }
-    }
+    };
+
+    const createManualPayment = async (paymentData: {
+        serviceName: string;
+        amount: number;
+        email: string;
+        mobile: string;
+        firstName: string;
+        lastName?: string;
+        notes?: string;
+        status?: 'pending' | 'success' | 'failed';
+    }) => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('adminToken');
+            const res = await fetch(`${API_BASE_URL}/payments/admin/manual`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(paymentData)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || 'Failed to create manual payment');
+            }
+            const result = await res.json();
+            return result.data;
+        } catch (err: any) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return {
         login,
@@ -205,6 +253,7 @@ export const useAdmin = () => {
         createJob,
         updateJob,
         deleteJob,
+        createManualPayment,
         loading,
         error
     };
