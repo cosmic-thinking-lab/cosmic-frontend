@@ -27,7 +27,7 @@ interface ApplicationModalProps {
     jobId?: string; // Added optional jobId prop to interface, though not strictly used in loop yet, good for future
 }
 
-export default function ApplicationModal({ isOpen, onClose, roleTitle }: ApplicationModalProps): JSX.Element | null {
+export default function ApplicationModal({ isOpen, onClose, roleTitle, jobId }: ApplicationModalProps): JSX.Element | null {
     const [form, setForm] = useState<ApplicationFormState>(initialState);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -84,8 +84,8 @@ export default function ApplicationModal({ isOpen, onClose, roleTitle }: Applica
             phone: form.phone,
             resumeLink: form.resumeLink,
             about: form.info,
-            // If we had jobId, we'd pass it here. For now rely on role.
-            // My usage of endpoints.public.applications implies generic application endpoint
+            // Include jobId so the application is linked to the specific job listing
+            ...(jobId ? { jobId } : {}),
         };
 
         try {

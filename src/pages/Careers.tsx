@@ -39,7 +39,7 @@ interface Job {
 
 export default function Careers(): JSX.Element {
     const [expandedRole, setExpandedRole] = useState<string | null>(null);
-    const [selectedRole, setSelectedRole] = useState<string | null>(null);
+    const [selectedJob, setSelectedJob] = useState<{ id: string; title: string } | null>(null);
     const [jobs, setJobs] = useState<Job[]>([]);
     const [jobsLoading, setJobsLoading] = useState(true);
     const [jobsError, setJobsError] = useState<string | null>(null);
@@ -89,9 +89,9 @@ export default function Careers(): JSX.Element {
         setExpandedRole(expandedRole === id ? null : id);
     };
 
-    const handleApply = (e: React.MouseEvent, title: string) => {
+    const handleApply = (e: React.MouseEvent, job: Job) => {
         e.stopPropagation();
-        setSelectedRole(title);
+        setSelectedJob({ id: job._id, title: job.title });
     };
 
     return (
@@ -190,7 +190,7 @@ export default function Careers(): JSX.Element {
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <button
-                                                            onClick={(e) => handleApply(e, job.title)}
+                                                            onClick={(e) => handleApply(e, job)}
                                                             className="px-6 py-2 bg-white text-black rounded-full font-bold text-sm hover:bg-gray-200 transition-colors z-10"
                                                         >
                                                             Apply Now
@@ -228,7 +228,7 @@ export default function Careers(): JSX.Element {
                                 We are always looking for exceptional talent. Send us your portfolio and tell us how you can contribute to the mission.
                             </p>
                             <button
-                                onClick={() => setSelectedRole("General Application")}
+                                onClick={() => setSelectedJob({ id: '', title: 'General Application' })}
                                 className="bg-white text-black px-8 py-4 rounded-full font-bold hover:bg-gray-200 transition-colors inline-block cursor-pointer"
                             >
                                 Email Us
@@ -241,9 +241,10 @@ export default function Careers(): JSX.Element {
             <Footer />
 
             <ApplicationModal
-                isOpen={!!selectedRole}
-                onClose={() => setSelectedRole(null)}
-                roleTitle={selectedRole || ""}
+                isOpen={!!selectedJob}
+                onClose={() => setSelectedJob(null)}
+                roleTitle={selectedJob?.title || ""}
+                jobId={selectedJob?.id || ''}
             />
         </div>
     );

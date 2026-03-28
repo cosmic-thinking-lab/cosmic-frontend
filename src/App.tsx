@@ -11,6 +11,7 @@ import NavBar from './components/NavBar'
 
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
+import JobApplications from './pages/JobApplications'
 import PrivateRoute from './components/PrivateRoute'
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Route path="/admin" element={<AdminLogin />} />
         <Route element={<PrivateRoute />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/jobs/:jobId/applications" element={<JobApplications />} />
         </Route>
       </Routes>
     </>

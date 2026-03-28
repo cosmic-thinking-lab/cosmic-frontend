@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 import JobModal from '../components/JobModal';
-import { Plus, Edit2, Trash2, ChevronDown, X, IndianRupee, Banknote, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, ChevronDown, X, IndianRupee, Banknote, Users, AlertTriangle } from 'lucide-react';
 
 interface DashboardItem {
     _id: string;
@@ -325,41 +325,21 @@ const AdminDashboard = () => {
     const [isJobModalOpen, setIsJobModalOpen] = useState(false);
     const [editingJob, setEditingJob] = useState<DashboardItem | null>(null);
     const [isManualPaymentModalOpen, setIsManualPaymentModalOpen] = useState(false);
+    const [jobToDelete, setJobToDelete] = useState<DashboardItem | null>(null);
 
     // Track which row's dropdown is open + its anchor button element
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
     
-    // Track which job's description is expanded
-    const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
+    // Track which job's description is being viewed in the modal
+    const [viewingDescJob, setViewingDescJob] = useState<DashboardItem | null>(null);
 
-    // Track which job's applications are expanded
-    const [expandedJobAppsId, setExpandedJobAppsId] = useState<string | null>(null);
-    const [jobApplications, setJobApplications] = useState<DashboardItem[]>([]);
-    const [loadingApps, setLoadingApps] = useState(false);
-
-    const handleViewApplications = async (jobId: string, jobTitle?: string) => {
-        if (expandedJobAppsId === jobId) {
-            setExpandedJobAppsId(null);
-            return;
-        }
-        setExpandedJobAppsId(jobId);
-        setLoadingApps(true);
-        try {
-            const apps = await fetchDashboardData('applications');
-            const specificApps = apps.filter((app: DashboardItem) => {
-                const matchesId = app.jobId === jobId || (typeof app.jobId === 'object' && app.jobId?._id === jobId);
-                const matchesRole = jobTitle && app.role && app.role.toLowerCase() === jobTitle.toLowerCase();
-                // Also attempt soft match if job object was fully populated but not explicitly tracked by _id
-                const matchesPopulatedTitle = jobTitle && typeof app.jobId === 'object' && app.jobId?.title?.toLowerCase() === jobTitle.toLowerCase();
-                return matchesId || matchesRole || matchesPopulatedTitle;
-            });
-            setJobApplications(specificApps);
-        } catch (e) {
-            console.error('Failed to load applications for job:', e);
-        } finally {
-            setLoadingApps(false);
-        }
+    const handleViewApplications = (jobId: string, item: DashboardItem) => {
+        const params = new URLSearchParams();
+        if (item.title)      params.set('title', item.title);
+        if (item.department) params.set('dept',  item.department);
+        if (item.location)   params.set('loc',   item.location);
+        navigate(`/admin/jobs/${jobId}/applications?${params.toString()}`);
     };
 
     const loadItems = useCallback(async (tab: string) => {
@@ -432,10 +412,10 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteJob = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this job listing?')) return;
         try {
             await deleteJob(id);
             loadItems(activeTab);
+            setJobToDelete(null);
         } catch (error) {
             console.error('Delete job error', error);
             alert('Failed to delete job');
@@ -571,7 +551,12 @@ const AdminDashboard = () => {
                             ) : (
                                 data.map((item) => (
                                     <React.Fragment key={item._id}>
-                                        <tr className="hover:bg-white/5 transition-colors">
+                                        <tr 
+                                            className={`hover:bg-white/5 transition-colors ${activeTab === 'jobs' ? 'cursor-pointer group/row' : ''}`}
+                                            onClick={() => {
+                                                if (activeTab === 'jobs') handleViewApplications(item._id, item);
+                                            }}
+                                        >
                                         {activeTab === 'jobs' ? (
                                             <>
                                                 <td className="px-6 py-6 font-medium">
@@ -580,15 +565,15 @@ const AdminDashboard = () => {
                                                     <div className="text-xs text-gray-500 mt-1">{item.type} • {item.location}</div>
                                                 </td>
                                                 <td className="px-6 py-6 text-sm text-gray-400 max-w-xs">
-                                                    <div className={`transition-all duration-300 ${expandedDescId === item._id ? 'whitespace-pre-wrap' : 'truncate'}`}>
+                                                    <div className="truncate">
                                                         {item.description}
                                                     </div>
                                                     {item.description && item.description.length > 50 && (
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); setExpandedDescId(expandedDescId === item._id ? null : item._id); }}
+                                                            onClick={(e) => { e.stopPropagation(); setViewingDescJob(item); }}
                                                             className="text-purple-400 hover:text-purple-300 text-[10px] font-bold mt-1.5 uppercase transition-colors"
                                                         >
-                                                            {expandedDescId === item._id ? 'Show Less' : 'Show More'}
+                                                            Show More
                                                         </button>
                                                     )}
                                                 </td>
@@ -598,7 +583,7 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-6 text-center">
                                                     {/* Status dropdown — same portal system as other tabs */}
                                                     <button
-                                                        onClick={(e) => handleToggleDropdown(e, item._id)}
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleDropdown(e, item._id); }}
                                                         className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                                                             item.isActive
                                                                 ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
@@ -627,20 +612,20 @@ const AdminDashboard = () => {
                                                     <div className="flex items-center justify-end space-x-2">
                                                         <button 
                                                             title="View Applications"
-                                                            onClick={() => handleViewApplications(item._id, item.title)}
-                                                            className={`p-2 rounded-lg transition-colors ${expandedJobAppsId === item._id ? 'bg-purple-500/20 text-purple-400' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                                            onClick={(e) => { e.stopPropagation(); handleViewApplications(item._id, item); }}
+                                                            className="p-2 rounded-lg transition-colors text-gray-400 hover:text-purple-400 group-hover/row:bg-purple-500/10 group-hover/row:text-purple-400"
                                                         >
                                                             <Users size={18} />
                                                         </button>
                                                         <button 
-                                                            onClick={() => openEditModal(item)}
-                                                            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                            onClick={(e) => { e.stopPropagation(); openEditModal(item); }}
+                                                            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors z-10"
                                                         >
                                                             <Edit2 size={18} />
                                                         </button>
                                                         <button 
-                                                            onClick={() => handleDeleteJob(item._id)}
-                                                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                            onClick={(e) => { e.stopPropagation(); setJobToDelete(item); }}
+                                                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors z-10"
                                                         >
                                                             <Trash2 size={18} />
                                                         </button>
@@ -765,64 +750,7 @@ const AdminDashboard = () => {
                                             </>
                                         )}
                                         </tr>
-                                        {activeTab === 'jobs' && expandedJobAppsId === item._id && (
-                                            <tr className="bg-white/5">
-                                                <td colSpan={5} className="p-0 border-t border-white/10">
-                                                    <div className="p-6 bg-[#131320] shadow-inner">
-                                                        <div className="flex items-center justify-between mb-4">
-                                                            <h4 className="text-white font-bold text-sm uppercase tracking-wider">
-                                                                Applications for {item.title}
-                                                            </h4>
-                                                            <button 
-                                                                title="Close applications"
-                                                                onClick={() => setExpandedJobAppsId(null)} 
-                                                                className="text-gray-400 hover:text-white transition-colors"
-                                                            >
-                                                                <X size={16} />
-                                                            </button>
-                                                        </div>
-                                                        {loadingApps ? (
-                                                            <div className="text-gray-400 text-sm py-4 text-center">Loading applications...</div>
-                                                        ) : jobApplications.length === 0 ? (
-                                                            <div className="text-gray-400 text-sm py-4 text-center">No applications received yet.</div>
-                                                        ) : (
-                                                            <table className="w-full text-left bg-[#1a1a2e] rounded-xl overflow-hidden shadow-lg border border-white/5">
-                                                                <thead className="bg-white/5 text-xs text-gray-400 uppercase tracking-wider">
-                                                                    <tr>
-                                                                        <th className="px-5 py-3 font-semibold">Applicant Name</th>
-                                                                        <th className="px-5 py-3 font-semibold">Contact Info</th>
-                                                                        <th className="px-5 py-3 font-semibold">Date</th>
-                                                                        <th className="px-5 py-3 font-semibold text-right">Status</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody className="divide-y divide-white/5">
-                                                                    {jobApplications.map((app: DashboardItem) => (
-                                                                        <tr key={app._id} className="hover:bg-white/5 transition-colors">
-                                                                            <td className="px-5 py-4">
-                                                                                <div className="text-white text-sm font-medium">{app.name}</div>
-                                                                                <div className="text-blue-400 text-xs mt-0.5">{app.role || 'Application'}</div>
-                                                                            </td>
-                                                                            <td className="px-5 py-4">
-                                                                                <div className="text-gray-300 text-sm">{app.email}</div>
-                                                                                {app.phone && <div className="text-gray-500 text-xs mt-0.5">{app.phone}</div>}
-                                                                            </td>
-                                                                            <td className="px-5 py-4 text-gray-400 text-sm">
-                                                                                {new Date(app.createdAt).toLocaleDateString()}
-                                                                            </td>
-                                                                            <td className="px-5 py-4 text-right">
-                                                                                <span className={`inline-flex px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${statusBadgeClass(app.status)}`}>
-                                                                                    {app.status || 'PENDING'}
-                                                                                </span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
+
                                     </React.Fragment>
                                 ))
                             )}
@@ -845,6 +773,65 @@ const AdminDashboard = () => {
                     onSubmit={handleCreateManualPayment}
                     loading={loading}
                 />
+            )}
+
+            {/* View Description Modal */}
+            {viewingDescJob && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div 
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                        onClick={() => setViewingDescJob(null)} 
+                    />
+                    <div className="relative w-full max-w-2xl bg-[#0d0d1a] border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in text-left">
+                        <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
+                            <div>
+                                <h3 className="text-2xl font-bold text-white">{viewingDescJob.title}</h3>
+                                <p className="text-purple-400 text-sm mt-1">{viewingDescJob.department} • Job Description</p>
+                            </div>
+                            <button 
+                                onClick={() => setViewingDescJob(null)}
+                                className="p-2 -mr-2 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                            {viewingDescJob.description || 'No description provided.'}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Delete Confirmation Modal */}
+            {jobToDelete && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div 
+                        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                        onClick={() => setJobToDelete(null)} 
+                    />
+                    <div className="relative w-full max-w-md bg-[#0d0d1a] border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in text-center">
+                        <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-white mb-2">Delete Job Listing?</h3>
+                        <p className="text-gray-400 mb-8">
+                            Are you sure you want to permanently delete <strong className="text-white">{jobToDelete.title}</strong>? This action cannot be undone.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                            <button 
+                                onClick={() => setJobToDelete(null)}
+                                className="flex-1 py-3 px-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteJob(jobToDelete._id)}
+                                className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-colors"
+                            >
+                                Delete Job
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

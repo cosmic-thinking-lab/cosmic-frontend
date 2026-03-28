@@ -211,6 +211,45 @@ export const useAdmin = () => {
         }
     };
 
+    const fetchJobApplications = useCallback(async (jobId: string, jobTitle?: string): Promise<DashboardItem[]> => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('adminToken');
+
+            // Use the reliable /admin/applications endpoint (always deployed).
+            // Filter client-side by jobId or role title.
+            const res = await fetch(`${API_BASE_URL}/admin/applications`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.status === 401) throw new Error('Unauthorized');
+            if (!res.ok) throw new Error('Failed to fetch applications');
+
+            const result = await res.json();
+            const all: DashboardItem[] = result.success ? result.data : [];
+
+            return all.filter(app => {
+                // Match by jobId (for applications submitted with a linked job id)
+                const jobIdMatch = typeof app.jobId === 'object' && app.jobId !== null
+                    ? (app.jobId as { _id: string })._id === jobId
+                    : app.jobId === jobId;
+
+                // Match by role title (for older applications stored without jobId)
+                const roleMatch = jobTitle
+                    ? app.role?.trim().toLowerCase() === jobTitle.trim().toLowerCase()
+                    : false;
+
+                return jobIdMatch || roleMatch;
+            });
+
+        } catch (err: any) {
+            setError(err.message);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     const createManualPayment = async (paymentData: {
         serviceName: string;
         amount: number;
@@ -249,6 +288,7 @@ export const useAdmin = () => {
     return {
         login,
         fetchDashboardData,
+        fetchJobApplications,
         updateItemStatus,
         createJob,
         updateJob,
